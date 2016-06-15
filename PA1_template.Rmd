@@ -7,19 +7,95 @@ output:
 
 
 ## Loading and preprocessing the data
-
-
+```{R}
+library(ggplot2)
+library(sqldf)
+library(mice)
+setwd("C:\\Coursera\\RepData_PeerAssessment1")
+repData <- read.csv(file="activity.csv", header=TRUE,sep=",")
+```
 
 ## What is mean total number of steps taken per day?
 
+Mean total number of steps taken per day
+```{R}
+tsteps <- aggregate(steps ~ date, data=repData, FUN=sum)
+summary(tsteps)
+```
+mean is 10766 and median is 10765
 
+A histogram of the total number of steps taken each day
+
+```{R}
+ggplot(tsteps, aes(steps)) + geom_histogram(binwidth=1000, na.rm = FALSE) +
+        xlab("Total Steps in a Day") +
+        ggtitle("Histogram of Total Number of Steps/day" )
+
+```
 
 ## What is the average daily activity pattern?
 
+Following line graph gives the average daily activity pattern where variation 
+of average steps for a particular time interval
 
+```{R}
+tsAvgIntSteps <- sqldf('select interval, avg(steps) AvgSteps from repData group by interval')
+ggplot(tsAvgIntSteps, aes(interval, AvgSteps )) + geom_line(colour="red",
+        size=1.0, na.rm=FALSE)  + xlab("Interval in mins") +
+        ylab("Average Steps") +
+        ggtitle("Variation of Average Steps with time interval" )
+```
+
+```{R}
+sqldf('select  interval, max(AvgSteps) from tsAvgIntSteps') 
+```
+Average Steps is maximum for time interval
 
 ## Imputing missing values
 
+Analysis of missing values
+```{R}
+md.pattern(repData)
+```
+it shows that 2304 records are having steps missing.
 
+Now impute missing data by using mice package using predictor mean method for filling the missing values.  Then find the mean and median values
+```{R}
+tempRepData <- mice(repData,m=1,maxit=50,meth='mean',seed=50)
+summary(tempRepData)
+completedData <- complete(tempRepData,1)
+tstepsMod <- aggregate(steps ~ date, data=completedData, FUN=sum)
+summary(tstepsMod)
+ggplot(tstepsMod, aes(steps)) + geom_histogram(binwidth=1000, na.rm = FALSE) +
+        xlab("Total Steps in a Day") +
+        ggtitle("Histogram of Total Number of Steps/day" )
+
+```
+
+Mean and median doesn't appear to change much after imputing NA values.  
+The Histogram shows a better spread after imputing indicating pronounced max 
+number of steps for the intervals which have near max values.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+Using data frame which has been imputed for further analysis to see the activity
+patterns differences between weekdays and weekends. 
+
+```{R}
+completedData$dayType <- as.factor(ifelse(weekdays(as.Date(completedData$date)) %in%
+         c("Saturday", "Sunday"), "Weekend", "Weekday"))
+
+tsAvgIntStepsMod <- sqldf('select interval, avg(steps) AvgSteps, dayType 
+        from completedData group by interval, dayType')
+
+
+ggplot(tsAvgIntStepsMod, aes(interval, AvgSteps))+geom_line(color="blue")+ 
+        facet_wrap(~dayType, ncol=1) +
+        xlab("Interval in mins") +
+        ylab("Average Steps") +
+        ggtitle("Variation of Average Steps with time interval for weekend 
+                and weekdays" )
+
+```
+
+From the comparison plot we can see that average steps are slightly more for weekends 
+when compared to weekdays, however the max average steps(Peak) is lower for weekend. 
